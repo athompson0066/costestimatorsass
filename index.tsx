@@ -1,16 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import App from './App';
 import AIWidget from './components/AIWidget';
 import { supabase } from './services/supabaseClient';
 import { BusinessConfig } from './types';
-
-/**
- * SMART ENTRY POINT
- * This file detects if it should show the Full Builder or just the Widget.
- * It uses the URL parameter '?widget=1' to decide.
- */
 
 const WidgetContainer = ({ initialConfig, widgetId }: { initialConfig: any, widgetId: string | null }) => {
   const [config, setConfig] = useState<BusinessConfig>(initialConfig);
@@ -45,21 +39,14 @@ const WidgetContainer = ({ initialConfig, widgetId }: { initialConfig: any, widg
 
 const init = () => {
   const rootElement = document.getElementById('root');
-  if (!rootElement) {
-    console.error("Root element not found");
-    return;
-  }
+  if (!rootElement) return;
 
-  // 1. Check for URL-based widget mode (Most reliable for Iframe embeds)
   const urlParams = new URLSearchParams(window.location.search);
   const isWidgetMode = urlParams.get('widget') === '1';
   const widgetId = urlParams.get('id');
-
-  // 2. Fallback to global config (for legacy script-tag embeds)
-  const windowConfig = (window as any).ESTIMATE_AI_CONFIG;
   const isWidgetOnly = isWidgetMode || (window as any).ESTIMATE_AI_WIDGET_ONLY === true;
 
-  const root = ReactDOM.createRoot(rootElement);
+  const root = createRoot(rootElement);
 
   if (isWidgetOnly) {
     const defaultWidgetConfig = {
@@ -75,9 +62,7 @@ const init = () => {
       pricingRules: 'Labor: $95/hr. Minimum: $150.',
     };
 
-    const finalConfig = windowConfig || defaultWidgetConfig;
-
-    // In widget mode, we remove the background so it floats nicely in the iframe
+    const finalConfig = (window as any).ESTIMATE_AI_CONFIG || defaultWidgetConfig;
     document.body.style.background = 'transparent';
     
     root.render(
@@ -86,7 +71,6 @@ const init = () => {
       </React.StrictMode>
     );
   } else {
-    // Standard App Mode (Builder)
     root.render(
       <React.StrictMode>
         <App />
@@ -95,7 +79,6 @@ const init = () => {
   }
 };
 
-// Ensure DOM is ready before init
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
