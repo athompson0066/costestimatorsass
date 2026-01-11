@@ -18,14 +18,18 @@ const WidgetContainer = ({ initialConfig, widgetId }: { initialConfig: any, widg
   useEffect(() => {
     if (widgetId) {
       const fetchConfig = async () => {
-        const { data, error } = await supabase
-          .from('widgets')
-          .select('config')
-          .eq('id', widgetId)
-          .single();
-        
-        if (!error && data?.config) {
-          setConfig(data.config);
+        try {
+          const { data, error } = await supabase
+            .from('widgets')
+            .select('config')
+            .eq('id', widgetId)
+            .single();
+          
+          if (!error && data?.config) {
+            setConfig(data.config);
+          }
+        } catch (e) {
+          console.error("Failed to fetch widget config:", e);
         }
       };
       fetchConfig();
@@ -41,7 +45,10 @@ const WidgetContainer = ({ initialConfig, widgetId }: { initialConfig: any, widg
 
 const init = () => {
   const rootElement = document.getElementById('root');
-  if (!rootElement) return;
+  if (!rootElement) {
+    console.error("Root element not found");
+    return;
+  }
 
   // 1. Check for URL-based widget mode (Most reliable for Iframe embeds)
   const urlParams = new URLSearchParams(window.location.search);
@@ -88,4 +95,9 @@ const init = () => {
   }
 };
 
-init();
+// Ensure DOM is ready before init
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
