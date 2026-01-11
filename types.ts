@@ -33,7 +33,8 @@ export interface LeadGenConfig {
   enabled: boolean;
   destination: 'email' | 'webhook' | 'slack' | 'all';
   targetEmail: string;
-  resendApiKey: string; // Added Resend API Key
+  resendApiKey: string;
+  senderName?: string;
   webhookUrl: string;
   googleSheetWebhookUrl: string;
   slackWebhookUrl: string;
@@ -115,4 +116,4 @@ export enum WidgetState {
   SUCCESS = 'SUCCESS'
 }
 
-export type AppTab = 'dashboard' | 'branding' | 'pricing' | 'prompt' | 'leads' | 'demo' | 'embed' | 'settings';
+export type AppTab = 'dashboard' | 'branding' | 'pricing' | 'prompt' | 'comms' | 'leads' | 'demo' | 'embed' | 'settings';
