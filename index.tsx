@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
-import AIWidget from './components/AIWidget';
-import { supabase } from './services/supabaseClient';
-import { BusinessConfig } from './types';
+import App from './App.tsx';
+import AIWidget from './components/AIWidget.tsx';
+import { supabase } from './services/supabaseClient.ts';
+import { BusinessConfig } from './types.ts';
 
 const WidgetContainer = ({ initialConfig, widgetId }: { initialConfig: any, widgetId: string | null }) => {
   const [config, setConfig] = useState<BusinessConfig>(initialConfig);

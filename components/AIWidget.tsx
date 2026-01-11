@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WidgetState, EstimateTask, EstimationResult, BusinessConfig } from '../types';
-import { getEstimate, dispatchLead } from '../services/geminiService';
+import { WidgetState, EstimateTask, EstimationResult, BusinessConfig } from '../types.ts';
+import { getEstimate, dispatchLead } from '../services/geminiService.ts';
 
 interface Props {
   config: BusinessConfig;

@@ -1,5 +1,5 @@
 
-import { BusinessConfig, EstimationResult } from '../types';
+import { BusinessConfig, EstimationResult } from '../types.ts';
 
 /**
  * Professional HTML template for the customer (user).

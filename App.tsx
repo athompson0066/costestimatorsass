@@ -3,12 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BusinessConfig, SavedWidget, AppTab, LeadRecord, ManualPriceItem 
-} from './types';
-import AIWidget from './components/AIWidget';
+} from './types.ts';
+import AIWidget from './components/AIWidget.tsx';
 import { 
   supabase, isSupabaseConfigured, updateSupabaseConfig, 
   getSupabaseConfig 
-} from './services/supabaseClient';
+} from './services/supabaseClient.ts';
 
 const INITIAL_CONFIG: BusinessConfig = {
   name: 'SwiftFix Handyman',

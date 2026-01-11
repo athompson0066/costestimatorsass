@@ -1,8 +1,8 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { EstimateTask, EstimationResult, BusinessConfig } from "../types";
-import { supabase } from "./supabaseClient";
-import { generateUserEmailTemplate, generateClientEmailTemplate, sendResendEmail } from "./emailService";
+import { EstimateTask, EstimationResult, BusinessConfig } from "../types.ts";
+import { supabase } from "./supabaseClient.ts";
+import { generateUserEmailTemplate, generateClientEmailTemplate, sendResendEmail } from "./emailService.ts";
 
 async function retryRequest<T>(fn: () => Promise<T>, retries = 3, initialDelay = 3000): Promise<T> {
   try {
