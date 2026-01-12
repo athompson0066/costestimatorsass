@@ -16,12 +16,12 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     zipCode: '',
   });
   const [result, setResult] = useState<EstimationResult | null>(null);
-  const [loadingMsg, setLoadingMsg] = useState('Consulting toolbox...');
+  const [loadingMsg, setLoadingMsg] = useState('Checking my toolbox...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [needsKey, setNeedsKey] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [leadInfo, setLeadInfo] = useState<any>({ 
+  const [leadInfo, setLeadInfo] = useState({ 
     name: '', 
     email: '', 
     phone: '', 
@@ -31,10 +31,14 @@ const AIWidget: React.FC<Props> = ({ config }) => {
   });
 
   useEffect(() => {
-    if (state === WidgetState.CLOSED) {
-      window.parent.postMessage('close', '*');
-    } else {
-      window.parent.postMessage('open', '*');
+    try {
+      if (state === WidgetState.CLOSED) {
+        window.parent.postMessage('close', '*');
+      } else {
+        window.parent.postMessage('open', '*');
+      }
+    } catch (e) {
+      // Cross-origin safe
     }
   }, [state]);
 
@@ -56,8 +60,9 @@ const AIWidget: React.FC<Props> = ({ config }) => {
   };
 
   const openKeyDialog = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
+    const aiStudio = (window as any).aistudio;
+    if (aiStudio?.openSelectKey) {
+      await aiStudio.openSelectKey();
       setNeedsKey(false);
       setErrorMessage(null);
     }
@@ -65,11 +70,13 @@ const AIWidget: React.FC<Props> = ({ config }) => {
 
   const handleEstimate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!task.description.trim()) return;
+    
     setErrorMessage(null);
     setNeedsKey(false);
     setState(WidgetState.LOADING);
     
-    const messages = ['Analyzing project...', 'Checking local rates...', 'Calculating materials...', 'Finalizing estimate...'];
+    const messages = ['Analyzing scope...', 'Comparing labor rates...', 'Checking material costs...', 'Finalizing estimate...'];
     let i = 0;
     const interval = setInterval(() => {
       setLoadingMsg(messages[i % messages.length]);
@@ -82,11 +89,11 @@ const AIWidget: React.FC<Props> = ({ config }) => {
       setState(WidgetState.RESULT);
     } catch (err: any) {
       console.error("Estimation Error:", err);
-      if (err.message === "MODEL_NOT_FOUND") {
+      if (err.message === "MODEL_NOT_FOUND" || err.message?.includes('API_KEY')) {
         setNeedsKey(true);
-        setErrorMessage("Model configuration error. Please ensure your API key is active.");
+        setErrorMessage("Please setup your API Key in the settings to enable AI estimation.");
       } else {
-        setErrorMessage(err.message || "Something went wrong. Please check your connection.");
+        setErrorMessage(err.message || "Failed to generate estimate. Please try again.");
       }
       setState(WidgetState.IDLE);
     } finally {
@@ -97,8 +104,11 @@ const AIWidget: React.FC<Props> = ({ config }) => {
   const handleLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState(WidgetState.LOADING);
+    setLoadingMsg("Booking your pro...");
     try {
-      if (result) await dispatchLead({ ...leadInfo, notes: task.description }, result, config);
+      if (result) {
+        await dispatchLead({ ...leadInfo, notes: task.description }, result, config);
+      }
       setState(WidgetState.SUCCESS);
     } catch (err) {
       setState(WidgetState.SUCCESS);
@@ -108,167 +118,298 @@ const AIWidget: React.FC<Props> = ({ config }) => {
   const primaryColor = config.primaryColor || '#f97316';
 
   return (
-    <div className="fixed bottom-0 right-0 w-[420px] h-[750px] pointer-events-none flex flex-col justify-end items-end p-6">
-      <AnimatePresence>
+    <div className="fixed bottom-0 right-0 w-[440px] h-fit max-h-[90vh] pointer-events-none flex flex-col justify-end items-end p-6 z-[999999]">
+      <AnimatePresence mode="wait">
         {state !== WidgetState.CLOSED && (
           <motion.div 
-            initial={{ opacity: 0, y: 20, scale: 0.95 }} 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
             animate={{ opacity: 1, y: 0, scale: 1 }} 
-            exit={{ opacity: 0, y: 20, scale: 0.95 }} 
-            className="w-full bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col mb-4 pointer-events-auto max-h-[700px]"
+            exit={{ opacity: 0, y: 50, scale: 0.9 }} 
+            className="w-full bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col mb-6 pointer-events-auto widget-shadow"
           >
-            <header style={{ backgroundColor: primaryColor }} className="p-6 text-white flex justify-between items-center shrink-0">
-              <div className="flex items-center space-x-3">
-                <img src={config.profilePic} className="w-12 h-12 rounded-xl object-cover border-2 border-white/20" />
-                <div>
-                  <h3 className="font-black text-lg">{config.headerTitle}</h3>
-                  <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{config.headerSubtitle}</p>
+            {/* Custom Header */}
+            <header style={{ backgroundColor: primaryColor }} className="p-6 text-white shrink-0 relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mr-10 -mt-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+              <div className="flex justify-between items-center relative z-10">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <img src={config.profilePic} className="w-12 h-12 rounded-xl object-cover border-2 border-white/20 shadow-md" alt="Avatar" />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-lg tracking-tight leading-none">{config.headerTitle}</h3>
+                    <p className="text-white/70 text-[10px] font-black uppercase tracking-widest mt-1">{config.headerSubtitle}</p>
+                  </div>
                 </div>
+                <button 
+                  onClick={toggle} 
+                  className="w-9 h-9 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
-              <button onClick={toggle} className="text-white/50 hover:text-white">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
             </header>
 
-            <div className="p-6 bg-slate-50/50 flex-1 overflow-y-auto custom-scrollbar">
+            {/* Main Content */}
+            <div className="p-7 bg-slate-50/30 flex-1 overflow-y-auto custom-scrollbar min-h-[380px] max-h-[500px]">
               <AnimatePresence mode="wait">
                 {state === WidgetState.IDLE && (
-                  <motion.form key="idle" onSubmit={handleEstimate} className="space-y-4">
+                  <motion.form 
+                    key="idle" 
+                    initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
+                    onSubmit={handleEstimate} 
+                    className="space-y-5"
+                  >
                     {errorMessage && (
-                      <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
-                        <p className="text-[10px] text-red-600 font-bold mb-2">{errorMessage}</p>
-                        {needsKey && (
-                          <button 
-                            type="button"
-                            onClick={openKeyDialog}
-                            className="w-full py-2 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg"
-                          >
-                            Update Key Settings
-                          </button>
-                        )}
+                      <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start space-x-3">
+                        <div className="shrink-0 mt-0.5 text-red-500">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[11px] text-red-700 font-bold leading-relaxed">{errorMessage}</p>
+                          {needsKey && (
+                            <button 
+                              type="button" onClick={openKeyDialog}
+                              className="mt-2 px-3 py-1.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm"
+                            >
+                              Open Setup
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Describe the project</label>
-                    <textarea required value={task.description} onChange={e => setTask({...task, description: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm h-28 focus:border-orange-500 outline-none transition-all shadow-sm" placeholder="Need to fix a leak..." />
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Describe the repair</label>
+                      <textarea 
+                        required 
+                        value={task.description} 
+                        onChange={e => setTask({...task, description: e.target.value})} 
+                        className="w-full p-5 rounded-[1.5rem] border-2 border-slate-100 text-sm h-32 focus:border-orange-500 outline-none transition-all shadow-sm bg-white focus:shadow-lg resize-none" 
+                        placeholder="e.g. My sink is clogged and there's water pooling under the cabinet..." 
+                      />
+                    </div>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      <input required value={task.zipCode} onChange={e => setTask({...task, zipCode: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm" placeholder="Zip Code" />
-                      <select value={task.urgency} onChange={e => setTask({...task, urgency: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm bg-white">
-                        <option value="within-3-days">Within 3 Days</option>
-                        <option value="same-day">Same Day</option>
-                        <option value="flexible">Flexible</option>
-                      </select>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zip Code</label>
+                        <input required value={task.zipCode} onChange={e => setTask({...task, zipCode: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm bg-white" placeholder="90210" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Urgency</label>
+                        <select value={task.urgency} onChange={e => setTask({...task, urgency: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm bg-white appearance-none cursor-pointer">
+                          <option value="within-3-days">Within 3 Days</option>
+                          <option value="same-day">Same Day</option>
+                          <option value="flexible">Flexible</option>
+                        </select>
+                      </div>
                     </div>
 
-                    <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl text-center cursor-pointer hover:border-orange-400 transition-colors group">
+                    <div 
+                      onClick={() => fileInputRef.current?.click()} 
+                      className="p-4 bg-white border-2 border-dashed border-slate-200 rounded-[1.5rem] text-center cursor-pointer hover:border-orange-400 transition-all group shadow-sm"
+                    >
                       {task.image ? (
                         <div className="flex items-center justify-center space-x-3">
-                          <img src={task.image} className="w-10 h-10 rounded-lg object-cover" />
-                          <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">Photo Attached</span>
+                          <div className="relative">
+                            <img src={task.image} className="w-10 h-10 rounded-lg object-cover shadow-sm border border-slate-100" alt="Job" />
+                            <div className="absolute -top-1.5 -right-1.5 bg-green-500 text-white rounded-full p-0.5"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg></div>
+                          </div>
+                          <span className="text-[9px] font-black text-green-600 uppercase tracking-widest">Photo Attached</span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center">
-                          <svg className="w-6 h-6 text-slate-300 group-hover:text-orange-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Add a Photo</span>
+                          <div className="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center mb-1 group-hover:bg-orange-50 transition-colors">
+                            <svg className="w-4 h-4 text-slate-400 group-hover:text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          </div>
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Add a photo (Optional)</span>
                         </div>
                       )}
                       <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
                     </div>
 
-                    <button type="submit" style={{ backgroundColor: primaryColor }} className="w-full py-5 text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all mt-2">Get Estimate</button>
+                    <button 
+                      type="submit" 
+                      style={{ backgroundColor: primaryColor }} 
+                      className="w-full py-5 text-white font-black text-lg rounded-[1.5rem] shadow-lg hover:shadow-xl hover:scale-[1.01] active:scale-95 transition-all mt-2"
+                    >
+                      Get Instant Quote
+                    </button>
                   </motion.form>
                 )}
 
                 {state === WidgetState.LOADING && (
-                  <div className="py-20 text-center space-y-4">
-                    <div className="w-12 h-12 border-4 border-slate-200 border-t-orange-600 rounded-full animate-spin mx-auto" style={{ borderTopColor: primaryColor }}></div>
-                    <p className="font-black text-slate-400 text-[10px] uppercase tracking-widest animate-pulse">{loadingMsg}</p>
-                  </div>
+                  <motion.div 
+                    key="loading" 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="py-24 text-center space-y-6"
+                  >
+                    <div className="relative w-16 h-16 mx-auto">
+                      <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                      <div 
+                        className="absolute inset-0 border-4 border-t-transparent rounded-full animate-spin" 
+                        style={{ borderColor: `${primaryColor} transparent transparent transparent` }}
+                      ></div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-black text-slate-800 text-xs uppercase tracking-[0.2em]">{loadingMsg}</p>
+                      <p className="text-slate-400 text-[10px] font-medium italic">Calculating rates based on your area...</p>
+                    </div>
+                  </motion.div>
                 )}
 
                 {state === WidgetState.RESULT && result && (
-                  <motion.div key="result" className="space-y-4 pb-4">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Total</p>
-                      <p className="text-4xl font-black" style={{ color: primaryColor }}>{result.estimatedCostRange}</p>
+                  <motion.div 
+                    key="result" 
+                    initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+                    className="space-y-5 pb-4"
+                  >
+                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl text-center relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: primaryColor }}></div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Estimated Total</p>
+                      <p className="text-5xl font-black tracking-tight" style={{ color: primaryColor }}>{result.estimatedCostRange}</p>
+                      <p className="text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest opacity-60 italic">Includes labor & materials</p>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Labor</p>
+                        <p className="text-sm font-extrabold text-slate-800">{result.laborEstimate}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Timing</p>
+                        <p className="text-sm font-extrabold text-slate-800">{result.timeEstimate || "1-2 Days"}</p>
+                      </div>
+                    </div>
+                    
                     {result.suggestedUpsells && result.suggestedUpsells.length > 0 && (
-                      <div className="space-y-2">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Recommended Add-ons:</p>
-                         {result.suggestedUpsells.map((upsell, idx) => (
-                           <div key={idx} className="bg-orange-50 border border-orange-100 p-3 rounded-xl flex justify-between items-center">
-                             <div className="flex-1 pr-3">
-                               <p className="font-bold text-[11px] text-orange-900 leading-tight">{upsell.label}</p>
-                               <p className="text-[9px] text-orange-700 italic leading-tight">{upsell.reason}</p>
-                             </div>
-                             <div className="text-right">
-                               <p className="font-black text-xs text-orange-600">{upsell.price}</p>
-                             </div>
-                           </div>
-                         ))}
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Pro Recommendations</p>
+                        {result.suggestedUpsells.map((upsell, idx) => (
+                          <div key={idx} className="bg-orange-50/50 border border-orange-100/50 p-4 rounded-2xl flex justify-between items-center">
+                            <div className="flex-1 pr-3">
+                              <p className="font-bold text-xs text-slate-800 leading-tight">{upsell.label}</p>
+                              <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{upsell.reason}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-sm text-orange-600">{upsell.price}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-white p-3 rounded-xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase">Labor</p><p className="text-xs font-bold">{result.laborEstimate}</p></div>
-                      <div className="bg-white p-3 rounded-xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase">Materials</p><p className="text-xs font-bold">{result.materialsEstimate}</p></div>
-                    </div>
-                    
-                    <button onClick={() => setState(WidgetState.LEAD_FORM)} style={{ backgroundColor: primaryColor }} className="w-full py-5 text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all">Book Service</button>
-                    <button onClick={() => setState(WidgetState.IDLE)} className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest underline opacity-50 hover:opacity-100 transition-opacity">Start Over</button>
+                    <button 
+                      onClick={() => setState(WidgetState.LEAD_FORM)} 
+                      style={{ backgroundColor: primaryColor }} 
+                      className="w-full py-5 text-white font-black text-lg rounded-[1.5rem] shadow-xl hover:shadow-2xl transition-all active:scale-95"
+                    >
+                      Book Professional
+                    </button>
+                    <button 
+                      onClick={() => setState(WidgetState.IDLE)} 
+                      className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                    >
+                      ← Edit Project Details
+                    </button>
                   </motion.div>
                 )}
 
                 {state === WidgetState.LEAD_FORM && (
-                  <motion.form key="lead" onSubmit={handleLeadSubmit} className="space-y-3">
-                    <h4 className="font-black text-xl text-center mb-4 text-slate-800">Final Step</h4>
-                    <input required placeholder="Name" value={leadInfo.name} onChange={e => setLeadInfo({...leadInfo, name: e.target.value})} className="w-full p-4 rounded-xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 shadow-sm" />
-                    <input required type="email" placeholder="Email" value={leadInfo.email} onChange={e => setLeadInfo({...leadInfo, email: e.target.value})} className="w-full p-4 rounded-xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 shadow-sm" />
-                    <input required type="tel" placeholder="Phone" value={leadInfo.phone} onChange={e => setLeadInfo({...leadInfo, phone: e.target.value})} className="w-full p-4 rounded-xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 shadow-sm" />
+                  <motion.form 
+                    key="lead" 
+                    initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} 
+                    onSubmit={handleLeadSubmit} 
+                    className="space-y-4"
+                  >
+                    <div className="text-center mb-6">
+                      <h4 className="font-black text-2xl text-slate-800 tracking-tight">Lock it In</h4>
+                      <p className="text-slate-400 text-xs font-medium mt-1">Leave your details and we'll call you to confirm.</p>
+                    </div>
                     
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Preferred Date</label>
-                        <input type="date" value={leadInfo.date} onChange={e => setLeadInfo({...leadInfo, date: e.target.value})} className="w-full p-3 rounded-xl border-2 border-slate-100 text-xs outline-none focus:border-orange-500 shadow-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Preferred Time</label>
-                        <input type="time" value={leadInfo.time} onChange={e => setLeadInfo({...leadInfo, time: e.target.value})} className="w-full p-3 rounded-xl border-2 border-slate-100 text-xs outline-none focus:border-orange-500 shadow-sm" />
-                      </div>
+                    <div className="space-y-3">
+                      <input required placeholder="Your Full Name" value={leadInfo.name} onChange={e => setLeadInfo({...leadInfo, name: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 bg-white shadow-sm transition-all" />
+                      <input required type="email" placeholder="Email Address" value={leadInfo.email} onChange={e => setLeadInfo({...leadInfo, email: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 bg-white shadow-sm transition-all" />
+                      <input required type="tel" placeholder="Phone Number" value={leadInfo.phone} onChange={e => setLeadInfo({...leadInfo, phone: e.target.value})} className="w-full p-5 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 bg-white shadow-sm transition-all" />
                     </div>
 
-                    <button type="submit" style={{ backgroundColor: primaryColor }} className="w-full py-5 text-white font-black rounded-2xl shadow-xl mt-2">Send Request</button>
+                    <button 
+                      type="submit" 
+                      style={{ backgroundColor: primaryColor }} 
+                      className="w-full py-5 text-white font-black text-lg rounded-[1.5rem] shadow-xl mt-4 active:scale-95 transition-all"
+                    >
+                      Request Booking
+                    </button>
+                    <button 
+                      type="button" onClick={() => setState(WidgetState.RESULT)} 
+                      className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                    >
+                      ← Back to Estimate
+                    </button>
                   </motion.form>
                 )}
 
                 {state === WidgetState.SUCCESS && (
-                  <div className="py-16 text-center space-y-4">
-                    <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto"><svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg></div>
-                    <h3 className="font-black text-2xl text-slate-800">Request Sent</h3>
-                    <p className="text-slate-400 text-sm font-medium">A professional will contact you soon.</p>
-                    <button onClick={() => setState(WidgetState.IDLE)} style={{ color: primaryColor }} className="font-black text-xs uppercase tracking-widest pt-4 block w-full text-center">Start New</button>
-                  </div>
+                  <motion.div 
+                    key="success" 
+                    initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} 
+                    className="py-20 text-center space-y-8"
+                  >
+                    <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto shadow-inner border border-green-100">
+                      <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <div className="space-y-2 px-4">
+                      <h3 className="font-black text-2xl text-slate-800 tracking-tight">Request Received!</h3>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed">We've notified our pro team. Expect a call within 2-4 business hours.</p>
+                    </div>
+                    <button 
+                      onClick={() => setState(WidgetState.IDLE)} 
+                      style={{ color: primaryColor }} 
+                      className="font-black text-[11px] uppercase tracking-[0.2em] pt-8 block w-full text-center hover:opacity-70 transition-opacity"
+                    >
+                      New Estimation
+                    </button>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>
+            
+            <footer className="px-7 py-4 bg-white border-t border-slate-50 flex justify-center items-center">
+              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest text-center">AI generated estimates for informational purposes only</p>
+            </footer>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Floating Toggle Button */}
       <motion.button 
         whileHover={{ scale: 1.05 }} 
-        whileTap={{ scale: 0.95 }}
+        whileTap={{ scale: 0.9 }}
         onClick={toggle} 
         style={{ backgroundColor: state === WidgetState.CLOSED ? primaryColor : '#fff' }} 
-        className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shadow-2xl pointer-events-auto border-4 ${state === WidgetState.CLOSED ? 'text-white border-transparent' : 'text-slate-600 border-white'}`}
+        className={`w-20 h-20 rounded-[2.2rem] flex items-center justify-center shadow-2xl pointer-events-auto border-4 ${state === WidgetState.CLOSED ? 'text-white border-transparent animate-pulse-subtle' : 'text-slate-600 border-white widget-shadow'} transition-colors duration-500`}
       >
-        {state === WidgetState.CLOSED ? (
-          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
-        ) : (
-          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
-        )}
+        <AnimatePresence mode="wait">
+          {state === WidgetState.CLOSED ? (
+            <motion.div
+              key="icon-closed"
+              initial={{ rotate: -45, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 45, opacity: 0 }}
+            >
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="icon-open"
+              initial={{ rotate: 45, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: -45, opacity: 0 }}
+            >
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.button>
     </div>
   );
