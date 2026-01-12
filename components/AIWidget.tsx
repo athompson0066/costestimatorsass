@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WidgetState, EstimateTask, EstimationResult, BusinessConfig } from '../types.ts';
@@ -122,6 +121,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
       <AnimatePresence mode="wait">
         {state !== WidgetState.CLOSED && (
           <motion.div 
+            key="widget-panel"
             initial={{ opacity: 0, y: 50, scale: 0.9 }} 
             animate={{ opacity: 1, y: 0, scale: 1 }} 
             exit={{ opacity: 0, y: 50, scale: 0.9 }} 
