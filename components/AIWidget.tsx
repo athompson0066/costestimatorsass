@@ -69,7 +69,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
       await aiStudio.openSelectKey();
       setNeedsKey(false);
       setErrorMessage(null);
-      // After opening, we assume success as per instructions
+      // Proceed immediately assuming selection will be handled
     }
   };
 
@@ -77,8 +77,9 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     e.preventDefault();
     if (!task.description.trim()) return;
     
-    // Check if API key is available before making the call
-    if (!process.env.API_KEY || process.env.API_KEY.trim() === "") {
+    // Safety check for API key presence
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+    if (!apiKey || apiKey.trim() === "") {
       const aiStudio = (window as any).aistudio;
       if (aiStudio) {
         setNeedsKey(true);
@@ -106,9 +107,19 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     } catch (err: any) {
       console.error("Estimation Error:", err);
       const msg = err.message || "";
-      if (msg === "MODEL_NOT_FOUND" || msg.includes('API_KEY') || msg.includes('API key')) {
+      
+      // Mandatory: Handle "Requested entity was not found" by prompting for re-selection
+      if (msg.includes('Requested entity was not found')) {
         setNeedsKey(true);
-        setErrorMessage("Invalid or missing API Key. Please click setup to configure.");
+        setErrorMessage("Requested project not found. Please select a valid paid project with billing enabled.");
+        setState(WidgetState.IDLE);
+        return;
+      }
+
+      // Handle missing or invalid key errors from the SDK
+      if (msg.includes('API Key') || msg.includes('API_KEY') || msg.includes('set when running in a browser')) {
+        setNeedsKey(true);
+        setErrorMessage("Gemini API Key required. Please click setup to connect your account.");
       } else {
         setErrorMessage(msg || "Failed to generate estimate. Please try again.");
       }
@@ -134,7 +145,6 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     setState(WidgetState.LOADING);
     setLoadingMsg("Booking your pro...");
     
-    // Append selected upsells to notes for clarity
     const upsellNotes = selectedUpsells.length > 0 
       ? `\n\nSelected Add-ons:\n${selectedUpsells.map(u => `- ${u.label} (${u.price})`).join('\n')}`
       : '';
@@ -163,7 +173,6 @@ const AIWidget: React.FC<Props> = ({ config }) => {
             exit={{ opacity: 0, y: 50, scale: 0.9 }} 
             className="w-full bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col mb-6 pointer-events-auto widget-shadow"
           >
-            {/* Custom Header */}
             <header style={{ backgroundColor: primaryColor }} className="p-6 text-white shrink-0 relative overflow-hidden">
               <div className="absolute top-0 right-0 -mr-10 -mt-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
               <div className="flex justify-between items-center relative z-10">
@@ -186,7 +195,6 @@ const AIWidget: React.FC<Props> = ({ config }) => {
               </div>
             </header>
 
-            {/* Main Content */}
             <div className="p-7 bg-slate-50/30 flex-1 overflow-y-auto custom-scrollbar min-h-[380px] max-h-[500px]">
               <AnimatePresence mode="wait">
                 {state === WidgetState.IDLE && (
@@ -466,7 +474,6 @@ const AIWidget: React.FC<Props> = ({ config }) => {
         )}
       </AnimatePresence>
 
-      {/* Floating Toggle Button */}
       <motion.button 
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.9 }}

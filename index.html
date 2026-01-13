@@ -38,6 +38,10 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.18);
         }
     </style>
+    <script>
+      // Safe polyfill for process.env to support runtime injection
+      window.process = window.process || { env: {} };
+    </script>
 <script type="importmap">
 {
   "imports": {
