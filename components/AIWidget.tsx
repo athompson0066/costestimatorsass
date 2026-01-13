@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { WidgetState, EstimateTask, EstimationResult, BusinessConfig } from '../types.ts';
+import { WidgetState, EstimateTask, EstimationResult, BusinessConfig, UpsellSuggestion } from '../types.ts';
 import { getEstimate, dispatchLead } from '../services/geminiService.ts';
 
 interface Props {
@@ -15,6 +16,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     zipCode: '',
   });
   const [result, setResult] = useState<EstimationResult | null>(null);
+  const [selectedUpsells, setSelectedUpsells] = useState<UpsellSuggestion[]>([]);
   const [loadingMsg, setLoadingMsg] = useState('Checking my toolbox...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [needsKey, setNeedsKey] = useState(false);
@@ -45,6 +47,9 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     setErrorMessage(null);
     setNeedsKey(false);
     setState(state === WidgetState.CLOSED ? WidgetState.IDLE : WidgetState.CLOSED);
+    if (state === WidgetState.CLOSED) {
+      setSelectedUpsells([]);
+    }
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,6 +78,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     
     setErrorMessage(null);
     setNeedsKey(false);
+    setSelectedUpsells([]);
     setState(WidgetState.LOADING);
     
     const messages = ['Analyzing scope...', 'Comparing labor rates...', 'Checking material costs...', 'Finalizing estimate...'];
@@ -100,13 +106,30 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     }
   };
 
+  const toggleUpsell = (upsell: UpsellSuggestion) => {
+    setSelectedUpsells(prev => {
+      const isAlreadySelected = prev.find(item => item.label === upsell.label);
+      if (isAlreadySelected) {
+        return prev.filter(item => item.label !== upsell.label);
+      } else {
+        return [...prev, upsell];
+      }
+    });
+  };
+
   const handleLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState(WidgetState.LOADING);
     setLoadingMsg("Booking your pro...");
+    
+    // Append selected upsells to notes for clarity
+    const upsellNotes = selectedUpsells.length > 0 
+      ? `\n\nSelected Add-ons:\n${selectedUpsells.map(u => `- ${u.label} (${u.price})`).join('\n')}`
+      : '';
+      
     try {
       if (result) {
-        await dispatchLead({ ...leadInfo, notes: task.description }, result, config);
+        await dispatchLead({ ...leadInfo, notes: task.description + upsellNotes }, result, config);
       }
       setState(WidgetState.SUCCESS);
     } catch (err) {
@@ -115,6 +138,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
   };
 
   const primaryColor = config.primaryColor || '#f97316';
+  const zipLabel = config.zipCodeLabel || 'Zip Code';
 
   return (
     <div className="fixed bottom-0 right-0 w-[440px] h-fit max-h-[90vh] pointer-events-none flex flex-col justify-end items-end p-6 z-[999999]">
@@ -180,7 +204,9 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                     )}
                     
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Describe the repair</label>
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Describe the repair</label>
+                      </div>
                       <textarea 
                         required 
                         value={task.description} 
@@ -188,12 +214,26 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                         className="w-full p-5 rounded-[1.5rem] border-2 border-slate-100 text-sm h-32 focus:border-orange-500 outline-none transition-all shadow-sm bg-white focus:shadow-lg resize-none" 
                         placeholder="e.g. My sink is clogged and there's water pooling under the cabinet..." 
                       />
+                      {config.suggestedQuestions && config.suggestedQuestions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {config.suggestedQuestions.map((q, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setTask({ ...task, description: q })}
+                              className="px-3 py-1.5 bg-white border border-slate-200 rounded-full text-[10px] font-bold text-slate-500 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-all shadow-sm whitespace-nowrap"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Zip Code</label>
-                        <input required value={task.zipCode} onChange={e => setTask({...task, zipCode: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm bg-white" placeholder="90210" />
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{zipLabel}</label>
+                        <input required value={task.zipCode} onChange={e => setTask({...task, zipCode: e.target.value})} className="w-full p-4 rounded-2xl border-2 border-slate-100 text-sm focus:border-orange-500 outline-none shadow-sm bg-white" placeholder={zipLabel} />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Urgency</label>
@@ -268,6 +308,11 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                       <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: primaryColor }}></div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Estimated Total</p>
                       <p className="text-5xl font-black tracking-tight" style={{ color: primaryColor }}>{result.estimatedCostRange}</p>
+                      {selectedUpsells.length > 0 && (
+                        <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-widest">
+                          + {selectedUpsells.length} Add-on{selectedUpsells.length > 1 ? 's' : ''} Selected
+                        </p>
+                      )}
                       <p className="text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-widest opacity-60 italic">Includes labor & materials</p>
                     </div>
 
@@ -285,17 +330,45 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                     {result.suggestedUpsells && result.suggestedUpsells.length > 0 && (
                       <div className="space-y-3">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Pro Recommendations</p>
-                        {result.suggestedUpsells.map((upsell, idx) => (
-                          <div key={idx} className="bg-orange-50/50 border border-orange-100/50 p-4 rounded-2xl flex justify-between items-center">
-                            <div className="flex-1 pr-3">
-                              <p className="font-bold text-xs text-slate-800 leading-tight">{upsell.label}</p>
-                              <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{upsell.reason}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-black text-sm text-orange-600">{upsell.price}</p>
-                            </div>
-                          </div>
-                        ))}
+                        {result.suggestedUpsells.map((upsell, idx) => {
+                          const isSelected = selectedUpsells.some(u => u.label === upsell.label);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => toggleUpsell(upsell)}
+                              className={`w-full text-left p-4 rounded-2xl border transition-all flex justify-between items-center group ${
+                                isSelected 
+                                  ? 'bg-orange-50 border-orange-400 shadow-md' 
+                                  : 'bg-white border-slate-100 hover:border-orange-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="flex-1 pr-3">
+                                <div className="flex items-center gap-2">
+                                  {isSelected && (
+                                    <div className="w-4 h-4 bg-orange-600 rounded-full flex items-center justify-center">
+                                      <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                  <p className={`font-bold text-xs leading-tight ${isSelected ? 'text-orange-900' : 'text-slate-800'}`}>
+                                    {upsell.label}
+                                  </p>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{upsell.reason}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className={`font-black text-sm ${isSelected ? 'text-orange-600' : 'text-slate-600 group-hover:text-orange-600'}`}>
+                                  {upsell.price}
+                                </p>
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-60">
+                                  {isSelected ? 'Remove' : 'Add'}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -307,7 +380,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                       Book Professional
                     </button>
                     <button 
-                      onClick={() => setState(WidgetState.IDLE)} 
+                      onClick={() => { setState(WidgetState.IDLE); setSelectedUpsells([]); }} 
                       className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
                     >
                       ← Edit Project Details
@@ -363,7 +436,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                       <p className="text-slate-400 text-sm font-medium leading-relaxed">We've notified our pro team. Expect a call within 2-4 business hours.</p>
                     </div>
                     <button 
-                      onClick={() => setState(WidgetState.IDLE)} 
+                      onClick={() => { setState(WidgetState.IDLE); setSelectedUpsells([]); }} 
                       style={{ color: primaryColor }} 
                       className="font-black text-[11px] uppercase tracking-[0.2em] pt-8 block w-full text-center hover:opacity-70 transition-opacity"
                     >
@@ -397,7 +470,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: 45, opacity: 0 }}
             >
-              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </motion.div>
           ) : (
             <motion.div

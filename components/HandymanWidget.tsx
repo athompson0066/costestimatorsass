@@ -14,6 +14,7 @@ const HandymanWidget: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState('Checking my toolbox...');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Added zipCodeLabel property to comply with the BusinessConfig interface requirements
   const handymanConfig: BusinessConfig = {
     name: 'SwiftFix Handyman',
     primaryColor: '#ea580c',
@@ -21,7 +22,8 @@ const HandymanWidget: React.FC = () => {
     headerSubtitle: 'Instant Project Estimation',
     profilePic: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=128&h=128&auto=format&fit=crop',
     hoverTitle: 'Get Instant Quote',
-    widgetIcon: 'calculator',
+    widgetIcon: 'dollar',
+    zipCodeLabel: 'Zip Code',
     services: ['Plumbing', 'Electrical', 'Furniture Assembly', 'Painting'],
     pricingRules: 'Minimum service fee is $95. Labor is $85/hour. Materials are marked up 15%. Weekend/Urgent requests have a 25% surcharge.',
     systemPrompt: 'You are a highly skilled professional handyman consultant. You are helpful, precise, and polite. When giving estimates, explain the reasoning behind the costs to build trust with the client. Always look for ways to add value by recommending preventative maintenance.',
@@ -115,7 +117,7 @@ const HandymanWidget: React.FC = () => {
         </div>
       )}
       <button onClick={toggleWidget} className="w-16 h-16 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 transform active:scale-95 bg-orange-600 hover:bg-orange-700">
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
       </button>
     </div>
   );

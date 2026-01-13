@@ -49,7 +49,7 @@ export interface LeadGenConfig {
   };
 }
 
-export type WidgetIconType = 'calculator' | 'wrench' | 'home' | 'sparkles' | 'chat';
+export type WidgetIconType = 'calculator' | 'wrench' | 'home' | 'sparkles' | 'chat' | 'dollar';
 
 export interface BusinessConfig {
   name: string;
@@ -59,6 +59,7 @@ export interface BusinessConfig {
   profilePic: string;
   hoverTitle: string;
   widgetIcon: WidgetIconType;
+  zipCodeLabel: string; // New field for label customization
   services: string[];
   pricingRules: string;
   systemPrompt: string; 

@@ -17,7 +17,8 @@ const INITIAL_CONFIG: BusinessConfig = {
   headerSubtitle: 'Instant Estimates',
   profilePic: 'https://images.unsplash.com/photo-1581578731548-c64695cc6958?q=80&w=256&h=256&auto=format&fit=crop',
   hoverTitle: 'Get a Quote',
-  widgetIcon: 'wrench',
+  widgetIcon: 'dollar',
+  zipCodeLabel: 'Zip Code',
   services: ['Plumbing', 'Electrical', 'Painting', 'General'],
   pricingRules: 'Labor: $95/hr. Minimum: $150. Materials: Cost + 20%.',
   systemPrompt: 'You are a highly skilled professional handyman consultant. You are helpful, precise, and polite. When giving estimates, explain the reasoning behind the costs to build trust with the client. Always look for ways to add value by recommending preventative maintenance.',
@@ -139,17 +140,34 @@ const App: React.FC = () => {
     try {
       const response = await fetch(targetUrl);
       const csvText = await response.text();
-      const lines = csvText.split('\n').filter(l => l.trim() !== '');
+      const lines = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
       if (lines.length < 2) throw new Error("Sheet is empty.");
 
       const newCore: ManualPriceItem[] = [];
       const newAddons: ManualPriceItem[] = [];
 
+      // Improved Regex for CSV splitting to handle quoted fields with commas
+      const csvRegex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+
       lines.slice(1).forEach((line, idx) => {
-        const [type, label, price, description] = line.split(',').map(s => s?.trim().replace(/^"|"$/g, ''));
-        const item: ManualPriceItem = { id: `sheet-${idx}`, label: label || 'No Label', price: price || '$0', description };
-        if (type?.toLowerCase().includes('core')) newCore.push(item);
-        else newAddons.push(item);
+        const parts = line.split(csvRegex).map(s => s?.trim().replace(/^"|"$/g, ''));
+        if (parts.length < 2) return; // Skip invalid lines
+
+        const [type, label, price, description] = parts;
+        const item: ManualPriceItem = { 
+          id: `sheet-${idx}-${Date.now()}`, 
+          label: label || 'No Label', 
+          price: price || '$0', 
+          description: description || '' 
+        };
+
+        const typeLower = type?.toLowerCase() || '';
+        // Broaden core item detection
+        if (typeLower.includes('core') || typeLower.includes('service') || typeLower.includes('main')) {
+          newCore.push(item);
+        } else {
+          newAddons.push(item);
+        }
       });
 
       setConfig(prev => ({
@@ -158,7 +176,7 @@ const App: React.FC = () => {
         smartAddons: newAddons,
         useSheetData: true
       }));
-      alert("Synced successfully!");
+      alert(`Synced successfully! Found ${newCore.length} Core items and ${newAddons.length} Add-ons.`);
     } catch (err: any) {
       alert("Sync failed: " + err.message);
     } finally {
@@ -171,7 +189,7 @@ const App: React.FC = () => {
       <aside className="w-full md:w-72 bg-white border-r border-slate-200 p-8 flex flex-col shrink-0 z-20 shadow-sm">
         <div className="flex items-center space-x-3 mb-12">
           <div className="bg-orange-600 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg transform -rotate-2">
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <span className="text-2xl font-black tracking-tight">Handy<span className="text-orange-600">Bot</span></span>
         </div>
@@ -227,10 +245,41 @@ const PricingTab = ({ config, setConfig, isSyncing, syncSheetData, addItem, remo
     </div>
 
     {config.pricingSource === 'sheet' && (
-      <div className="bg-white p-8 rounded-[2rem] shadow-sm space-y-4 border border-slate-100">
+      <div className="bg-white p-8 rounded-[2rem] shadow-sm space-y-6 border border-slate-100">
         <div className="flex gap-4 items-end">
-          <Field label="Google Sheet URL" value={config.googleSheetUrl} onChange={(v: string) => setConfig({...config, googleSheetUrl: v})} />
-          <button onClick={syncSheetData} disabled={isSyncing} className="px-8 h-[64px] bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all disabled:opacity-50 min-w-[140px]">{isSyncing ? 'Syncing...' : 'Sync Now'}</button>
+          <Field label="Google Sheet URL" value={config.googleSheetUrl} onChange={(v: string) => setConfig({...config, googleSheetUrl: v})} placeholder="https://docs.google.com/spreadsheets/d/..." />
+          <button onClick={syncSheetData} disabled={isSyncing} className="px-8 h-[64px] bg-green-600 text-white font-black rounded-2xl hover:bg-green-700 transition-all disabled:opacity-50 min-w-[140px] shadow-lg shadow-green-100">{isSyncing ? 'Syncing...' : 'Sync Now'}</button>
+        </div>
+        
+        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Required Sheet Format</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono text-slate-600 border-collapse">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="border border-slate-200 p-2 text-left">Type</th>
+                  <th className="border border-slate-200 p-2 text-left">Label</th>
+                  <th className="border border-slate-200 p-2 text-left">Price</th>
+                  <th className="border border-slate-200 p-2 text-left">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-slate-200 p-2 font-bold text-orange-600">Core</td>
+                  <td className="border border-slate-200 p-2 italic">Drain Unclog</td>
+                  <td className="border border-slate-200 p-2 italic">$150</td>
+                  <td className="border border-slate-200 p-2 italic">Standard sink unclogging</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 p-2 font-bold text-indigo-600">Add-on</td>
+                  <td className="border border-slate-200 p-2 italic">Pipe Cleaning</td>
+                  <td className="border border-slate-200 p-2 italic">$50</td>
+                  <td className="border border-slate-200 p-2 italic">Hydro jetting addon</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-4 text-[10px] text-slate-400 font-medium italic">Make sure your sheet is "Public" or "Anyone with the link can view".</p>
         </div>
       </div>
     )}
@@ -255,16 +304,16 @@ const PricingColumn = ({ title, list, onAdd, onRemove, onUpdate, readOnly, accen
     </div>
     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
       {list?.map((item: any) => (
-        <div key={item.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative group">
+        <div key={item.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative group shadow-sm hover:border-slate-200 transition-all">
           {!readOnly && <button onClick={() => onRemove(item.id)} className="absolute top-4 right-4 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg></button>}
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <input disabled={readOnly} value={item.label} onChange={e => onUpdate(item.id, 'label', e.target.value)} className="bg-white p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Label" />
-            <input disabled={readOnly} value={item.price} onChange={e => onUpdate(item.id, 'price', e.target.value)} className="bg-white p-3 rounded-xl border border-slate-200 text-sm font-bold" placeholder="Price" />
+            <input disabled={readOnly} value={item.label} onChange={e => onUpdate(item.id, 'label', e.target.value)} className="bg-white p-3 rounded-xl border border-slate-200 text-sm font-bold focus:border-orange-500 outline-none" placeholder="Label" />
+            <input disabled={readOnly} value={item.price} onChange={e => onUpdate(item.id, 'price', e.target.value)} className="bg-white p-3 rounded-xl border border-slate-200 text-sm font-bold focus:border-orange-500 outline-none" placeholder="Price" />
           </div>
-          <textarea disabled={readOnly} value={item.description} onChange={e => onUpdate(item.id, 'description', e.target.value)} className="w-full bg-white p-3 rounded-xl border border-slate-200 text-xs font-medium h-16 resize-none" placeholder="Description" />
+          <textarea disabled={readOnly} value={item.description} onChange={e => onUpdate(item.id, 'description', e.target.value)} className="w-full bg-white p-3 rounded-xl border border-slate-200 text-xs font-medium h-16 resize-none focus:border-orange-500 outline-none" placeholder="Description" />
         </div>
       ))}
-      {(!list || list.length === 0) && <div className="text-center py-20 text-slate-300 font-bold uppercase text-[10px] tracking-widest border-2 border-dashed border-slate-100 rounded-[2rem]">No items {readOnly ? 'synced' : 'added'}</div>}
+      {(!list || list.length === 0) && <div className="text-center py-20 text-slate-300 font-bold uppercase text-[10px] tracking-widest border-2 border-dashed border-slate-100 rounded-[2rem]">No items {readOnly ? 'found' : 'added'}</div>}
     </div>
   </div>
 );
@@ -277,7 +326,10 @@ const BrandingTab = ({ config, setConfig }: any) => (
         <Field label="Estimator Name" value={config.name} onChange={(v: string) => setConfig({...config, name: v})} />
         <Field label="Brand Primary Color" type="color" value={config.primaryColor} onChange={(v: string) => setConfig({...config, primaryColor: v})} />
       </div>
-      <Field label="Profile Picture URL" value={config.profilePic} onChange={(v: string) => setConfig({...config, profilePic: v})} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+        <Field label="Profile Picture URL" value={config.profilePic} onChange={(v: string) => setConfig({...config, profilePic: v})} />
+        <Field label="Zip/Postal Code Label" value={config.zipCodeLabel || 'Zip Code'} onChange={(v: string) => setConfig({...config, zipCodeLabel: v})} placeholder="e.g. Postal Code" />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         <Field label="Widget Header Title" value={config.headerTitle} onChange={(v: string) => setConfig({...config, headerTitle: v})} />
         <Field label="Widget Subtitle" value={config.headerSubtitle} onChange={(v: string) => setConfig({...config, headerSubtitle: v})} />
