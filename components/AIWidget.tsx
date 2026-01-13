@@ -69,6 +69,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
       await aiStudio.openSelectKey();
       setNeedsKey(false);
       setErrorMessage(null);
+      // After opening, we assume success as per instructions
     }
   };
 
@@ -76,6 +77,16 @@ const AIWidget: React.FC<Props> = ({ config }) => {
     e.preventDefault();
     if (!task.description.trim()) return;
     
+    // Check if API key is available before making the call
+    if (!process.env.API_KEY || process.env.API_KEY.trim() === "") {
+      const aiStudio = (window as any).aistudio;
+      if (aiStudio) {
+        setNeedsKey(true);
+        setErrorMessage("Please setup your API Key to enable AI estimation.");
+        return;
+      }
+    }
+
     setErrorMessage(null);
     setNeedsKey(false);
     setSelectedUpsells([]);
@@ -94,11 +105,12 @@ const AIWidget: React.FC<Props> = ({ config }) => {
       setState(WidgetState.RESULT);
     } catch (err: any) {
       console.error("Estimation Error:", err);
-      if (err.message === "MODEL_NOT_FOUND" || err.message?.includes('API_KEY')) {
+      const msg = err.message || "";
+      if (msg === "MODEL_NOT_FOUND" || msg.includes('API_KEY') || msg.includes('API key')) {
         setNeedsKey(true);
-        setErrorMessage("Please setup your API Key in the settings to enable AI estimation.");
+        setErrorMessage("Invalid or missing API Key. Please click setup to configure.");
       } else {
-        setErrorMessage(err.message || "Failed to generate estimate. Please try again.");
+        setErrorMessage(msg || "Failed to generate estimate. Please try again.");
       }
       setState(WidgetState.IDLE);
     } finally {
@@ -196,7 +208,7 @@ const AIWidget: React.FC<Props> = ({ config }) => {
                               type="button" onClick={openKeyDialog}
                               className="mt-2 px-3 py-1.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-sm"
                             >
-                              Open Setup
+                              Setup Key
                             </button>
                           )}
                         </div>
